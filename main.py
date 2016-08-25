@@ -1,89 +1,66 @@
-import os
-import re
 import webapp2
+import re
+import cgi
 
 signup = """
 <!DOCTYPE html>
 
 <html>
-  <head>
-    <title>Unit 2 Rot 13</title>
-    <style type="text/css">
-      .label {text-align: right}
-      .error {color: red}
-    </style>
-
-  </head>
-
-  <body>
-    <h2>Signup</h2>
-    <form method="post">
-      <table>
-        <tr>
-          <td class="label">
-            Username
-          </td>
-          <td>
-            <input type="text" name="username" value="{{username}}">
-          </td>
-          <td class="error">
-            {{error_username}}
-          </td>
-        </tr>
-
-        <tr>
-          <td class="label">
-            Password
-          </td>
-          <td>
-            <input type="password" name="password" value="">
-          </td>
-          <td class="error">
-            {{error_password}}
-          </td>
-        </tr>
-
-        <tr>
-          <td class="label">
-            Verify Password
-          </td>
-          <td>
-            <input type="password" name="verify" value="">
-          </td>
-          <td class="error">
-            {{error_verify}}
-          </td>
-        </tr>
-
-        <tr>
-          <td class="label">
-            Email (optional)
-          </td>
-          <td>
-            <input type="text" name="email" value="{{email}}">
-          </td>
-          <td class="error">
-            {{error_email}}
-          </td>
-        </tr>
-      </table>
-
-      <input type="submit">
-    </form>
-  </body>
-
+    <head>
+        <style>
+            .error {
+                color: red;
+            }
+        </style>
+    </head>
+    <body>
+    <h1>Signup</h1>
+        <form method="post">
+            <table>
+                <tr>
+                    <td><label for="username">Username</label></td>
+                    <td>
+                        <input name="username" type="text" value="" required>
+                        <span class="error"></span>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label for="password">Password</label></td>
+                    <td>
+                        <input name="password" type="password" required>
+                        <span class="error"></span>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label for="verify">Verify Password</label></td>
+                    <td>
+                        <input name="verify" type="password" required>
+                        <span class="error"></span>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label for="email">Email (optional)</label></td>
+                    <td>
+                        <input name="email" type="email" value="">
+                        <span class="error"></span>
+                    </td>
+                </tr>
+            </table>
+            <input type="submit">
+        </form>
+    </body>
 </html>
 """
 
 welcome = """
 <!DOCTYPE html>
 <html>
-    <h1>Welcome, {{username}}!</h1>
+<body>
+  <h2>Welcome, %(username)s!</h2>
+</body>
 </html>
 """
 
-
-#function for regular expressions for validation
 USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
 def valid_username(username):
     return username and USER_RE.match(username)
@@ -96,10 +73,16 @@ EMAIL_RE  = re.compile(r'^[\S]+@[\S]+\.[\S]+$')
 def valid_email(email):
     return not email or EMAIL_RE.match(email)
 
-class Signup(webapp2.RequestHandler):
-    def get(self):
-        self.response.write(signup)
 
+class Signup(webapp2.RequestHandler):
+
+    def get(self):
+
+        # if we have an error, make a <p> to display it
+        error = self.request.get("error")
+        error_element = "<p class='error'>" + error + "</p>" if error else ""
+        response = signup + error_element
+        self.response.write(response)
 
     def post(self):
         have_error = False
@@ -108,35 +91,39 @@ class Signup(webapp2.RequestHandler):
         verify = self.request.get('verify')
         email = self.request.get('email')
 
+        username = cgi.escape(username, quote=True)
+        password = cgi.escape(password, quote=True)
+        verify = cgi.escape(verify, quote=True)
+
+
+        if email != "":
+            email = cgi.escape(email, quote=True)
+
         if not valid_username(username):
-            params['error_username'] = "That's not a valid username."
-            have_error = True
+            error = "Invalid Username"
+            error_escaped = cgi.escape(error, quote=True)
+            self.redirect("/?error=" + error_escaped)
 
         if not valid_password(password):
-            params['error_password'] = "That wasn't a valid password."
-            have_error = True
+            error = "Invalid password"
+            error_escaped = cgi.escape(error, quote=True)
+            self.redirect("/?error=" + error_escaped)
+
         elif password != verify:
-            params['error_verify'] = "Your passwords didn't match."
-            have_error = True
+            error = "Passwords not the same"
+            error_escaped = cgi.escape(error, quote=True)
+            self.redirect("/?error=" + error_escaped)
 
         if not valid_email(email):
-            params['error_email'] = "That's not a valid email."
-            have_error = True
-
-        if have_error:
-            self.response.write(signup)
-        else:
-            self.redirect('/welcome' + username)
-
-class Welcome(BaseHandler):
-    def get(self):
-        username = self.request.get('username')
-        if valid_username(username):
-            self.response.write(welcome, username = username)
-        else:
-            self.redirect('/signup')
+            error = "Not a valid email"
+            error_escaped = cgi.escape(error, quote=True)
+            self.redirect("/?error=" + error_escaped)
 
 
-app = webapp2.WSGIApplication([('/signup', Signup),
-                               ('/welcome', Welcome)],
-                              debug=True)
+        username = self.request.get("username")
+        self.response.write(welcome % {"username": username})
+
+
+app = webapp2.WSGIApplication([
+        ('/', Signup)
+], debug=True)
